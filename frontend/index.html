@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student CRUD</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 650px; margin: 40px auto; padding: 20px; }
+    input, button { padding: 9px; margin: 5px 0; }
+    input { display: block; width: 100%; box-sizing: border-box; }
+    li { margin: 12px 0; padding: 12px; background: #f2f2f2; }
+    button { cursor: pointer; margin-right: 8px; }
+    #message { color: #a00; min-height: 1.2em; }
+    #message.ok { color: #080; }
+  </style>
+</head>
+<body>
+  <h1>Student CRUD</h1>
+  <form id="student-form">
+    <input id="name" placeholder="Student name" required>
+    <input id="age" type="number" min="1" placeholder="Age" required>
+    <input id="email" type="email" placeholder="Email" required>
+    <button type="submit">Add student</button>
+  </form>
+
+  <p id="message" role="status"></p>
+  <h2>Students</h2>
+  <ul id="student-list"></ul>
+
+  <script>
+    // The API runs on a different origin (different port) than this page, so
+    // every request is cross-origin. The backend answers with CORS headers
+    // that allow it (allow_origins=["*"] in backend/main.py).
+    // uvicorn's default port is 8000 - if you change it, change this line too.
+    const API = "http://127.0.0.1:8000/students";
+    const list = document.getElementById("student-list");
+    const message = document.getElementById("message");
+
+    function showMessage(text, ok = false) {
+      message.textContent = text;
+      message.className = ok ? "ok" : "";
+    }
+
+    // READ: GET /students
+    async function loadStudents() {
+      const response = await fetch(API);
+      const students = await response.json();
+      list.replaceChildren();
+
+      students.forEach(student => {
+        const item = document.createElement("li");
+        item.textContent =
+          `${student.name} | Age: ${student.age} | ${student.email} `;
+
+        const edit = document.createElement("button");
+        edit.textContent = "Edit";
+        edit.onclick = async () => {
+          const name = prompt("Name:", student.name);
+          if (name === null) return;
+          const age = prompt("Age:", student.age);
+          if (age === null) return;
+          const email = prompt("Email:", student.email);
+          if (email === null) return;
+
+          const ageNumber = Number(age);
+          if (Number.isNaN(ageNumber)) {
+            showMessage("Age must be a number.");
+            return;
+          }
+
+          // UPDATE: PUT /students/{id}
+          const result = await fetch(`${API}/${student.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: name,
+              age: ageNumber,
+              email: email
+            })
+          });
+
+          if (!result.ok) {
+            showMessage("Update failed.");
+            return;
+          }
+          showMessage("Student updated.", true);
+          await loadStudents();
+        };
+
+        const remove = document.createElement("button");
+        remove.textContent = "Delete";
+        remove.onclick = async () => {
+          if (!confirm("Delete this student?")) return;
+
+          // DELETE: DELETE /students/{id}
+          const result = await fetch(`${API}/${student.id}`, {
+            method: "DELETE"
+          });
+
+          if (!result.ok) {
+            showMessage("Delete failed.");
+            return;
+          }
+          showMessage("Student deleted.", true);
+          await loadStudents();
+        };
+
+        item.append(edit, remove);
+        list.append(item);
+      });
+    }
+
+    // CREATE: POST /students
+    document.getElementById("student-form").addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const student = {
+        name: document.getElementById("name").value,
+        age: Number(document.getElementById("age").value),
+        email: document.getElementById("email").value
+      };
+
+      const response = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(student)
+      });
+
+      if (!response.ok) {
+        showMessage("Create failed. Check the values.");
+        return;
+      }
+
+      event.target.reset();
+      showMessage("Student added.", true);
+      await loadStudents();
+    });
+
+    loadStudents();
+  </script>
+</body>
+</html>
